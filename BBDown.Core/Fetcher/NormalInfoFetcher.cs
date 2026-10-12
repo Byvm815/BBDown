@@ -112,6 +112,18 @@ public partial class NormalInfoFetcher : IFetcher
         }
         catch { }
 
+        //UGC合集信息: 只有在合集里的视频才有ugc_season字段
+        if (data.TryGetProperty("ugc_season", out var ugcSeason) && ugcSeason.ValueKind == JsonValueKind.Object)
+        {
+            string? seasonTitle = ugcSeason.TryGetProperty("title", out var seasonTitleElem) ? seasonTitleElem.GetString() : null;
+            string? seasonId = ugcSeason.TryGetProperty("id", out var seasonIdElem) ? seasonIdElem.ToString() : null;
+            pagesInfo.ForEach(p =>
+            {
+                p.seasonTitle = seasonTitle;
+                p.seasonId = seasonId;
+            });
+        }
+
         var info = new VInfo
         {
             Title = title.Trim(),

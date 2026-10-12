@@ -34,7 +34,11 @@ internal class MyOption
     public bool AllowPcdn { get; set; } = false;
     public bool ForceReplaceHost { get; set; } = true;
     public bool SaveArchivesToFile { get; set; } = false;
-    public bool WriteInfoFile { get; set; } = false;
+    /// <summary>
+    /// 视频元信息文件的字段列表, 如 "&lt;videoTitle&gt;&lt;ownerName&gt;&lt;bvid&gt;"; 为空表示不写信息文件
+    /// </summary>
+    public string WriteInfoFile { get; set; } = "";
+    public bool GroupByUploader { get; set; } = false;
     public string FilePattern { get; set; } = "";
     public string MultiFilePattern { get; set; } = "";
     public string SelectPage { get; set; } = "";

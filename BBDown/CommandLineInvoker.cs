@@ -51,7 +51,26 @@ internal static class CommandLineInvoker
     private static readonly Option<string> UposHost = new(["--upos-host"], "自定义upos服务器");
     private static readonly Option<bool> ForceReplaceHost = new(["--force-replace-host"], "强制替换下载服务器host(默认开启)");
     private static readonly Option<bool> SaveArchivesToFile = new(["--save-archives-to-file"], "将下载过的视频记录到本地文件中, 用于后续跳过下载同个视频");
-    private static readonly Option<bool> WriteInfoFile = new(["--write-info-file"], "将视频元信息(videoTitle/ownerName/ownerMid/videoDate)写入输出文件所在目录下的 videoInfo.txt");
+    private static readonly Option<string> WriteInfoFile = new(["--write-info-file"],
+        $"将视频元信息写入与视频同名(仅扩展名不同)的txt文件:\r\n\r\n" +
+        $"参数为要写入的字段列表, 例如 \"<videoTitle><ownerName><bvid>\", 每个字段输出为一行 key: value\r\n\r\n" +
+        $"<videoTitle>: 视频主标题\r\n" +
+        $"<pageNumber>: 视频分P序号\r\n" +
+        $"<pageNumberWithZero>: 视频分P序号(前缀补零)\r\n" +
+        $"<pageTitle>: 视频分P标题\r\n" +
+        $"<bvid>: 视频BV号\r\n" +
+        $"<aid>: 视频aid\r\n" +
+        $"<cid>: 视频cid\r\n" +
+        $"<ownerName>: 上传者名称\r\n" +
+        $"<ownerMid>: 上传者mid\r\n" +
+        $"<publishDate>: 收藏夹/番剧/合集发布时间\r\n" +
+        $"<videoDate>: 视频发布时间\r\n" +
+        $"<downloadDate>: 下载时间\r\n" +
+        $"<seasonTitle>: 视频所属UGC合集名称(不属于合集时为空)\r\n" +
+        $"<seasonId>: 视频所属UGC合集id(不属于合集时为空)\r\n" +
+        $"<apiType>: API类型(TV/APP/INTL/WEB)\r\n\r\n" +
+        $"日期字段可自定义格式, 例如 <videoDate:yyyyMMdd>\r\n");
+    private static readonly Option<bool> GroupByUploader = new(["--group-by-uploader"], "按UP主与合集归档为 <UP主名称>/合集/合集·<合集名称>/ 或 <UP主名称>/非合集/");
     private static readonly Option<string> DelayPerPage = new(["--delay-per-page"], "设置下载合集分P之间的下载间隔时间(单位: 秒, 默认无间隔)");
     private static readonly Option<string> FilePattern = new(["--file-pattern", "-F"], 
         $"使用内置变量自定义单P存储文件名:\r\n\r\n" + 
@@ -144,6 +163,7 @@ internal static class CommandLineInvoker
             if (bindingContext.ParseResult.HasOption(ForceReplaceHost)) option.ForceReplaceHost = bindingContext.ParseResult.GetValueForOption(ForceReplaceHost)!;
             if (bindingContext.ParseResult.HasOption(SaveArchivesToFile)) option.SaveArchivesToFile = bindingContext.ParseResult.GetValueForOption(SaveArchivesToFile)!;
             if (bindingContext.ParseResult.HasOption(WriteInfoFile)) option.WriteInfoFile = bindingContext.ParseResult.GetValueForOption(WriteInfoFile)!;
+            if (bindingContext.ParseResult.HasOption(GroupByUploader)) option.GroupByUploader = bindingContext.ParseResult.GetValueForOption(GroupByUploader)!;
             if (bindingContext.ParseResult.HasOption(DelayPerPage)) option.DelayPerPage = bindingContext.ParseResult.GetValueForOption(DelayPerPage)!;
             if (bindingContext.ParseResult.HasOption(Host)) option.Host = bindingContext.ParseResult.GetValueForOption(Host)!;
             if (bindingContext.ParseResult.HasOption(EpHost)) option.EpHost = bindingContext.ParseResult.GetValueForOption(EpHost)!;
@@ -210,6 +230,7 @@ internal static class CommandLineInvoker
             ForceReplaceHost,
             SaveArchivesToFile,
             WriteInfoFile,
+            GroupByUploader,
             DelayPerPage,
             Host,
             EpHost,

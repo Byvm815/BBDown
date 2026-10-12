@@ -188,6 +188,12 @@ partial class Program
         //处理冲突选项
         HandleConflictingOptions(myOption);
 
+        //校验--write-info-file的格式, 不合法时尽早报错
+        if (!string.IsNullOrWhiteSpace(myOption.WriteInfoFile))
+        {
+            ParseWriteInfoFileKeys(myOption.WriteInfoFile);
+        }
+
         //寻找并设置所需的二进制文件路径
         FindBinaries(myOption);
 
@@ -327,6 +333,13 @@ partial class Program
         List<Page> pagesInfo = vInfo.PagesInfo;
         bool bangumi = vInfo.IsBangumi;
         bool cheese = vInfo.IsCheese;
+
+        //系列(series)不是合集(ugc_season), 开启按UP主归档时无法归类, 直接跳过
+        if (myOption.GroupByUploader && vInfo.IsSeries)
+        {
+            LogWarn("该视频属于\"系列\"(series)而非\"合集\"(collection), 开启按UP主归档时暂不支持, 跳过下载");
+            return;
+        }
         //获取已选择的分P列表
         List<string>? selectedPages = GetSelectedPages(myOption, vInfo, input);
 
@@ -384,6 +397,8 @@ partial class Program
         string desc = string.IsNullOrEmpty(p.desc) ? vInfo.Desc : p.desc;
         bool bangumi = vInfo.IsBangumi;
         var pagesCount = selectedPagesInfo.Count;
+        //按UP主/合集的归档前缀(未开启归档时为空串)
+        string groupPrefix = BuildGroupPrefix(myOption, p, bangumi, vInfo.IsCheese);
         List<Subtitle> subtitleInfo = [];
         string title = vInfo.Title;
         string pic = vInfo.Pic;
@@ -433,12 +448,10 @@ partial class Program
                         await SubUtil.SaveSubtitleAsync(s.url, s.path);
                         if (myOption.SubOnly && File.Exists(s.path) && File.ReadAllText(s.path) != "")
                         {
-                            var _outSubPath = FormatSavePath(savePathFormat, title, null, null, p, pagesCount, apiType, pubTime);
-                            if (_outSubPath.Contains('/'))
-                            {
-                                if (!Directory.Exists(_outSubPath.Split('/').First()))
-                                    Directory.CreateDirectory(_outSubPath.Split('/').First());
-                            }
+                            var _outSubPath = FormatSavePath(savePathFormat, title, null, null, p, pagesCount, apiType, pubTime, groupPrefix);
+                            //创建完整的目标目录(路径可能是多层的, 例如 <UP主>/合集/合集·xxx/)
+                            var _outDir = Path.GetDirectoryName(_outSubPath);
+                            if (!string.IsNullOrEmpty(_outDir)) Directory.CreateDirectory(_outDir);
                             _outSubPath = Path.ChangeExtension(_outSubPath, $".{s.lan}.srt");
                             File.Move(s.path, _outSubPath, true);
                         }
@@ -537,9 +550,9 @@ partial class Program
                 Audio? selectedBackgroundAudio = parsedResult.BackgroundAudioTracks.ElementAtOrDefault(aIndex);
 
                 LogDebug("Format Before: " + savePathFormat);
-                savePath = FormatSavePath(savePathFormat, title, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime);
+                savePath = FormatSavePath(savePathFormat, title, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime, groupPrefix);
                 LogDebug("Format After: " + savePath);
-                if (myOption.WriteInfoFile) WriteVideoInfoFile(savePath, title, p);
+                WriteVideoInfoFile(myOption, savePath, title, p, pagesCount, apiType, pubTime);
 
                 if (downloadDanmaku)
                 {
@@ -721,8 +734,8 @@ partial class Program
                     }
                 }
                 if (myOption.OnlyShowInfo) return;
-                savePath = FormatSavePath(savePathFormat, title, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime);
-                if (myOption.WriteInfoFile) WriteVideoInfoFile(savePath, title, p);
+                savePath = FormatSavePath(savePathFormat, title, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime, groupPrefix);
+                WriteVideoInfoFile(myOption, savePath, title, p, pagesCount, apiType, pubTime);
                 if (File.Exists(savePath) && new FileInfo(savePath).Length != 0)
                 {
                     Log($"{savePath}已存在, 跳过下载...");
@@ -846,68 +859,173 @@ partial class Program
     }
 
     /// <summary>
-    /// 将视频元信息(<videoTitle>/<ownerName>/<ownerMid>/<videoDate>)写入到输出文件所在目录下的 videoInfo.txt
+    /// --write-info-file 支持的变量(不含依赖具体视频流的 dfn/res/fps 等)
     /// </summary>
-    private static void WriteVideoInfoFile(string savePath, string title, Page p)
+    private static readonly string[] WriteInfoFileVariables =
+    [
+        "videoTitle", "pageNumber", "pageNumberWithZero", "pageTitle", "bvid", "aid", "cid",
+        "ownerName", "ownerMid", "publishDate", "videoDate", "downloadDate", "seasonTitle", "seasonId", "apiType"
+    ];
+
+    private static bool _warnedGroupPrefixUnsupported;
+
+    /// <summary>
+    /// 从 --write-info-file 参数中抽出变量名并校验格式, 不合法时抛异常
+    /// </summary>
+    private static List<string> ParseWriteInfoFileKeys(string format)
     {
-        if (string.IsNullOrWhiteSpace(savePath)) return;
-        string dir = Path.GetDirectoryName(savePath);
-        if (string.IsNullOrEmpty(dir)) dir = ".";
-        Directory.CreateDirectory(dir);
-        var infoPath = Path.Combine(dir, "videoInfo.txt");
-        var content = $"videoTitle: {title}\r\n" +
-                      $"ownerName: {p.ownerName ?? ""}\r\n" +
-                      $"ownerMid: {p.ownerMid ?? ""}\r\n" +
-                      $"videoDate: {FormatTimeStamp(p.pubTime, "yyyy-MM-dd HH:mm:ss")}\r\n" +
-                      $"bvid: {p.bvid}\r\n";
-        File.WriteAllText(infoPath, content);
+        var regex = InfoRegex();
+        //把所有<变量>挖掉, 剩下的必须只是空白
+        var rest = regex.Replace(format, "");
+        if (rest.Trim().Length != 0)
+        {
+            throw new Exception($"--write-info-file 参数格式不正确, 只允许连续的<变量>, 例如 \"<videoTitle><bvid>\"; 无法识别的内容: \"{rest.Trim()}\"");
+        }
+
+        List<string> keys = [];
+        foreach (Match m in regex.Matches(format).Cast<Match>())
+        {
+            var key = m.Groups[1].Value;
+            var name = key.Contains(':') ? key[..key.IndexOf(':')] : key;
+            if (!WriteInfoFileVariables.Contains(name))
+            {
+                throw new Exception($"--write-info-file 不支持变量 <{name}>, 可用变量: {string.Join(" ", WriteInfoFileVariables.Select(k => $"<{k}>"))}");
+            }
+            keys.Add(key);
+        }
+
+        if (keys.Count == 0)
+        {
+            throw new Exception("--write-info-file 参数不能为空, 例如 \"<videoTitle><bvid>\"");
+        }
+        return keys;
+    }
+
+    /// <summary>
+    /// 按用户指定的字段列表, 把视频元信息写入与视频同名(仅扩展名不同)的txt文件
+    /// </summary>
+    private static void WriteVideoInfoFile(MyOption myOption, string savePath, string title, Page p, int pagesCount, string apiType, long pubTime)
+    {
+        if (string.IsNullOrWhiteSpace(savePath) || string.IsNullOrWhiteSpace(myOption.WriteInfoFile)) return;
+        var dir = Path.GetDirectoryName(savePath);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        var infoPath = Path.ChangeExtension(savePath, ".txt");
+        var lines = new List<string>();
+        foreach (var key in ParseWriteInfoFileKeys(myOption.WriteInfoFile))
+        {
+            //变量名去掉自定义日期格式后缀, 输出为一行 "变量名: 值"
+            var name = key.Contains(':') ? key[..key.IndexOf(':')] : key;
+            lines.Add($"{name}: {ResolveVariable(key, title, null, null, p, pagesCount, apiType, pubTime, sanitize: false)}");
+        }
+        File.WriteAllText(infoPath, string.Join("\r\n", lines) + "\r\n");
         LogDebug("已写入视频信息文件: {0}", infoPath);
     }
 
-    private static string FormatSavePath(string savePathFormat, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime)
+    /// <summary>
+    /// 解析单个内置变量的值, key 可带自定义日期格式后缀(如 videoDate:yyyyMMdd)
+    /// </summary>
+    /// <param name="sanitize">true 用于拼文件路径(替换非法字符); false 用于写信息文件(保留原文)</param>
+    private static string ResolveVariable(string key, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, bool sanitize = true)
     {
-        var result = savePathFormat.Replace('\\', '/');
+        //解析自定义日期格式
+        var defaultDateFormat = "yyyy-MM-dd_HH-mm-ss";
+        string[] prefixes = ["publishDate:", "videoDate:", "downloadDate:"];
+        foreach (var prefix in prefixes)
+        {
+            if (key.StartsWith(prefix))
+            {
+                defaultDateFormat = key[(key.IndexOf(':') + 1)..];
+                key = prefix.Replace(":", "");
+                break;
+            }
+        }
+
+        return key switch
+        {
+            "videoTitle" => sanitize ? GetValidFileName(title, filterSlash: true).Trim().TrimEnd('.').Trim() : title,
+            "pageNumber" => p.index.ToString(),
+            "pageNumberWithZero" => p.index.ToString().PadLeft(pagesCount.ToString().Length, '0'),
+            "pageTitle" => sanitize ? GetValidFileName(p.title, filterSlash: true).Trim().TrimEnd('.').Trim() : p.title,
+            "bvid" => p.bvid,
+            "aid" => p.aid,
+            "cid" => p.cid,
+            "ownerName" => p.ownerName == null ? "" : (sanitize ? GetValidFileName(p.ownerName, filterSlash: true).Trim().TrimEnd('.').Trim() : p.ownerName),
+            "ownerMid" => p.ownerMid ?? "",
+            "seasonTitle" => p.seasonTitle == null ? "" : (sanitize ? GetValidFileName(p.seasonTitle, filterSlash: true).Trim().TrimEnd('.').Trim() : p.seasonTitle),
+            "seasonId" => p.seasonId ?? "",
+            "dfn" => videoTrack == null ? "" : videoTrack.dfn,
+            "res" => videoTrack == null ? "" : videoTrack.res,
+            "fps" => videoTrack == null ? "" : videoTrack.fps,
+            "videoCodecs" => videoTrack == null ? "" : videoTrack.codecs,
+            "videoBandwidth" => videoTrack == null ? "" : videoTrack.bandwith.ToString(),
+            "audioCodecs" => audioTrack == null ? "" : audioTrack.codecs,
+            "audioBandwidth" => audioTrack == null ? "" : audioTrack.bandwith.ToString(),
+            "publishDate" => FormatTimeStamp(pubTime, defaultDateFormat),
+            "videoDate" => FormatTimeStamp(p.pubTime, defaultDateFormat),
+            "downloadDate" => FormatTimeStamp(DateTimeOffset.Now.ToUnixTimeSeconds(), defaultDateFormat),
+            "apiType" => apiType,
+            _ => $"<{key}>"
+        };
+    }
+
+    /// <summary>
+    /// 净化单层路径名(替换非法字符, 去掉首尾空白与结尾的点)
+    /// </summary>
+    private static string SanitizePathSegment(string input)
+        => GetValidFileName(input, filterSlash: true).Trim().TrimEnd('.').Trim();
+
+    /// <summary>
+    /// 构造按UP主/合集的归档前缀(以'/'结尾); 未开启或无法确定UP主时返回空串
+    /// </summary>
+    private static string BuildGroupPrefix(MyOption myOption, Page p, bool bangumi, bool cheese)
+    {
+        if (!myOption.GroupByUploader) return "";
+        //--only-show-info 不产生任何文件, 也就不建目录
+        if (myOption.OnlyShowInfo) return "";
+        //番剧/课程没有"UP主投稿"的概念, 不做归档
+        if (bangumi || cheese)
+        {
+            if (!_warnedGroupPrefixUnsupported)
+            {
+                _warnedGroupPrefixUnsupported = true;
+                LogWarn("番剧/课程视频不支持按UP主归档, 已跳过归档");
+            }
+            return "";
+        }
+        if (string.IsNullOrWhiteSpace(p.ownerName)) return "";
+
+        var up = SanitizePathSegment(p.ownerName!);
+        if (up.Length == 0) return "";
+        //避免与临时目录(纯数字的aid)同名, 否则清理临时目录时可能误删成品
+        if (up.All(char.IsDigit)) up += "_";
+
+        var root = up + "/";
+        //合集/非合集 两个目录总是创建
+        Directory.CreateDirectory(root + "合集");
+        Directory.CreateDirectory(root + "非合集");
+
+        if (!string.IsNullOrWhiteSpace(p.seasonTitle))
+        {
+            var season = SanitizePathSegment($"合集·{p.seasonTitle}");
+            if (season.Length > 0)
+            {
+                var dir = $"{root}合集/{season}";
+                Directory.CreateDirectory(dir);
+                return dir + "/";
+            }
+        }
+        return root + "非合集/";
+    }
+
+    private static string FormatSavePath(string savePathFormat, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, string groupPrefix = "")
+    {
+        //绝对路径的pattern不参与归档前缀
+        if (Path.IsPathRooted(savePathFormat)) groupPrefix = "";
+        var result = groupPrefix + savePathFormat.Replace('\\', '/');
         var regex = InfoRegex();
         foreach (Match m in regex.Matches(result).Cast<Match>())
         {
-            var key = m.Groups[1].Value;
-
-            //解析自定义日期格式
-            var defaultDateFormat = "yyyy-MM-dd_HH-mm-ss";
-            string[] prefixes = ["publishDate:", "videoDate:"];
-            foreach (var prefix in prefixes)
-            {
-                if (key.StartsWith(prefix))
-                {
-                    defaultDateFormat = key[(key.IndexOf(':') + 1)..];
-                    key = prefix.Replace(":", "");
-                    break;
-                }
-            }
-
-            var v = key switch
-            {
-                "videoTitle" => GetValidFileName(title, filterSlash: true).Trim().TrimEnd('.').Trim(),
-                "pageNumber" => p.index.ToString(),
-                "pageNumberWithZero" => p.index.ToString().PadLeft(pagesCount.ToString().Length, '0'),
-                "pageTitle" => GetValidFileName(p.title, filterSlash: true).Trim().TrimEnd('.').Trim(),
-                "bvid" => p.bvid,
-                "aid" => p.aid,
-                "cid" => p.cid,
-                "ownerName" => p.ownerName == null ? "" : GetValidFileName(p.ownerName, filterSlash: true).Trim().TrimEnd('.').Trim(),
-                "ownerMid" => p.ownerMid ?? "",
-                "dfn" => videoTrack == null ? "" : videoTrack.dfn,
-                "res" => videoTrack == null ? "" : videoTrack.res,
-                "fps" => videoTrack == null ? "" : videoTrack.fps,
-                "videoCodecs" => videoTrack == null ? "" : videoTrack.codecs,
-                "videoBandwidth" => videoTrack == null ? "" : videoTrack.bandwith.ToString(),
-                "audioCodecs" => audioTrack == null ? "" : audioTrack.codecs,
-                "audioBandwidth" => audioTrack == null ? "" : audioTrack.bandwith.ToString(),
-                "publishDate" => FormatTimeStamp(pubTime, defaultDateFormat),
-                "videoDate" => FormatTimeStamp(p.pubTime, defaultDateFormat),
-                "apiType" => apiType,
-                _ => $"<{key}>"
-            };
+            var v = ResolveVariable(m.Groups[1].Value, title, videoTrack, audioTrack, p, pagesCount, apiType, pubTime);
             result = result.Replace(m.Value, v);
         }
         if (!result.EndsWith(".mp4")) { result += ".mp4"; }

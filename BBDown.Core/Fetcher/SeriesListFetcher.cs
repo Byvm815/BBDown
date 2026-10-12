@@ -73,7 +73,8 @@ public class SeriesListFetcher : IFetcher
             Pic = "",
             PubTime = pubTime,
             PagesInfo = pagesInfo,
-            IsBangumi = false
+            IsBangumi = false,
+            IsSeries = true
         };
 
         return info;

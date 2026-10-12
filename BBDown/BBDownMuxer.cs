@@ -108,13 +108,15 @@ static partial class BBDownMuxer
         episodeId = EscapeString(episodeId);
         var url = $"https://www.bilibili.com/video/{bvid}/";
 
+        //输出目录可能是多层的(例如按UP主/合集归档时), mp4box分支不会自己建目录, 这里统一先建好
+        if (outPath.Contains('/') && !Directory.Exists(Path.GetDirectoryName(outPath)))
+            Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
+
         if (useMp4box)
         {
             return MuxByMp4box(url, videoPath, audioPath, outPath, desc, title, author, episodeId, pic, lang, subs, audioOnly, videoOnly, points);
         }
 
-        if (outPath.Contains('/') && ! Directory.Exists(Path.GetDirectoryName(outPath)))
-            Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
         //----分析并生成-i参数
         StringBuilder inputArg = new();
         StringBuilder metaArg = new();

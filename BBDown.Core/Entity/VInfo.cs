@@ -45,4 +45,9 @@ public class VInfo
     /// 是否为互动视频
     /// </summary>
     public bool IsSteinGate { get; set; }
+
+    /// <summary>
+    /// 本次解析是否来自"系列"(series), 系列不是合集(ugc_season), 两者结构不同
+    /// </summary>
+    public bool IsSeries { get; set; }
 }

@@ -19,6 +19,14 @@ public static class Entity
         public string? desc;
         public string? ownerName;
         public string? ownerMid;
+        /// <summary>
+        /// 视频所属UGC合集(ugc_season)的名称, 不属于任何合集时为null
+        /// </summary>
+        public string? seasonTitle;
+        /// <summary>
+        /// 视频所属UGC合集的id, 不属于任何合集时为null
+        /// </summary>
+        public string? seasonId;
         public string bvid
         {
             get => BilibiliBvConverter.Encode(long.Parse(aid));
@@ -98,6 +106,8 @@ public static class Entity
             this.cover = page.cover;
             this.ownerName = page.ownerName;
             this.ownerMid = page.ownerMid;
+            this.seasonTitle = page.seasonTitle;
+            this.seasonId = page.seasonId;
         }
 
         public override bool Equals(object? obj)

@@ -96,6 +96,13 @@ public class MediaListFetcher : IFetcher
             }
         }
 
+        //这批视频都来自同一个合集, 直接把合集信息填进去
+        pagesInfo.ForEach(p =>
+        {
+            p.seasonTitle = listTitle.Trim();
+            p.seasonId = id;
+        });
+
         var info = new VInfo
         {
             Title = listTitle.Trim(),
