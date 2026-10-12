@@ -1,4 +1,4 @@
-﻿namespace BBDown;
+namespace BBDown;
 
 internal class MyOption
 {
@@ -34,6 +34,7 @@ internal class MyOption
     public bool AllowPcdn { get; set; } = false;
     public bool ForceReplaceHost { get; set; } = true;
     public bool SaveArchivesToFile { get; set; } = false;
+    public bool WriteInfoFile { get; set; } = false;
     public string FilePattern { get; set; } = "";
     public string MultiFilePattern { get; set; } = "";
     public string SelectPage { get; set; } = "";

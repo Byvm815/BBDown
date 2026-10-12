@@ -539,6 +539,7 @@ partial class Program
                 LogDebug("Format Before: " + savePathFormat);
                 savePath = FormatSavePath(savePathFormat, title, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime);
                 LogDebug("Format After: " + savePath);
+                if (myOption.WriteInfoFile) WriteVideoInfoFile(savePath, title, p);
 
                 if (downloadDanmaku)
                 {
@@ -721,6 +722,7 @@ partial class Program
                 }
                 if (myOption.OnlyShowInfo) return;
                 savePath = FormatSavePath(savePathFormat, title, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime);
+                if (myOption.WriteInfoFile) WriteVideoInfoFile(savePath, title, p);
                 if (File.Exists(savePath) && new FileInfo(savePath).Length != 0)
                 {
                     Log($"{savePath}已存在, 跳过下载...");
@@ -841,6 +843,25 @@ partial class Program
             .OrderBy(a => encodingPriority.GetValueOrDefault(a.shortCodecs, (byte)100))
             .ThenBy(a => audioAscending ? a.bandwith : -a.bandwith)
             .ToList();
+    }
+
+    /// <summary>
+    /// 将视频元信息(<videoTitle>/<ownerName>/<ownerMid>/<videoDate>)写入到输出文件所在目录下的 videoInfo.txt
+    /// </summary>
+    private static void WriteVideoInfoFile(string savePath, string title, Page p)
+    {
+        if (string.IsNullOrWhiteSpace(savePath)) return;
+        string dir = Path.GetDirectoryName(savePath);
+        if (string.IsNullOrEmpty(dir)) dir = ".";
+        Directory.CreateDirectory(dir);
+        var infoPath = Path.Combine(dir, "videoInfo.txt");
+        var content = $"videoTitle: {title}\r\n" +
+                      $"ownerName: {p.ownerName ?? ""}\r\n" +
+                      $"ownerMid: {p.ownerMid ?? ""}\r\n" +
+                      $"videoDate: {FormatTimeStamp(p.pubTime, "yyyy-MM-dd HH:mm:ss")}\r\n" +
+                      $"bvid: {p.bvid}\r\n";
+        File.WriteAllText(infoPath, content);
+        LogDebug("已写入视频信息文件: {0}", infoPath);
     }
 
     private static string FormatSavePath(string savePathFormat, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime)
