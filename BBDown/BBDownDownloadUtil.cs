@@ -23,17 +23,29 @@ internal static class BBDownDownloadUtil
         public DownloadTask? RelatedTask { get; set; } = null;
     }
 
-    private static async Task RangeDownloadToTmpAsync(int id, string url, string tmpName, long fromPosition, long? toPosition, Action<int, long, long> onProgress, bool failOnRangeNotSupported = false)
+    // expectedLength: 这一片应有的字节数; null = 未知(整文件下载用)
+    private static async Task RangeDownloadToTmpAsync(int id, string url, string tmpName, long fromPosition, long? toPosition, long? expectedLength, Action<int, long, long> onProgress, bool failOnRangeNotSupported = false)
     {
         DateTimeOffset? lastTime = File.Exists(tmpName) ? new FileInfo(tmpName).LastWriteTimeUtc : null;
         using var fileStream = new FileStream(tmpName, FileMode.OpenOrCreate);
         fileStream.Seek(0, SeekOrigin.End);
-        if (toPosition > 0 && fileStream.Position == toPosition - fromPosition + 1)
+
+        // 这一片已经下完了就直接跳过。
+        // 老判断是 `toPosition > 0 && 长度 == to-from+1`, 对**最后一片**(to 为 null)不成立,
+        // 于是续传时会从"已有长度"继续往后请求, 起点正好等于 EOF → 服务器回 416 → 重试永远失败。
+        if (expectedLength is > 0 && fileStream.Position == expectedLength)
         {
-            // 已下载完成 直接汇报进度并跳过下载
             onProgress(id, fileStream.Position, fileStream.Position);
             return;
         }
+        // 文件比预期还长 = 脏了, 截断重下这一片
+        if (expectedLength is > 0 && fileStream.Position > expectedLength)
+        {
+            fileStream.SetLength(0);
+            fileStream.Seek(0, SeekOrigin.Begin);
+        }
+
+        var startLength = fileStream.Position;   // 本次续传前已有的字节数
         var downloadedBytes = fromPosition + fileStream.Position;
 
         using var httpRequestMessage = new HttpRequestMessage();
@@ -51,6 +63,7 @@ internal static class BBDownDownloadUtil
         {
             if (failOnRangeNotSupported && (downloadedBytes > 0 || toPosition != null)) throw new NotSupportedException("Range request is not supported.");
             downloadedBytes = 0;
+            startLength = 0;
             fileStream.Seek(0, SeekOrigin.Begin);
         }
 
@@ -70,8 +83,14 @@ internal static class BBDownDownloadUtil
             onProgress(id, downloadedBytes - fromPosition, totalBytes);
         }
 
-        if (response.Content.Headers.ContentLength != null && (response.Content.Headers.ContentLength != new FileInfo(tmpName).Length))
-            throw new Exception("Retry...");
+        // 拿"本次实际写入的字节数"比对服务器声明的长度。
+        // 老写法比的是"整个临时文件的长度", 续传时必然不等 → 每次重试都抛, 分片一旦中断就再也救不回来。
+        if (response.Content.Headers.ContentLength != null)
+        {
+            var received = new FileInfo(tmpName).Length - startLength;
+            if (response.Content.Headers.ContentLength != received)
+                throw new Exception("Retry...");
+        }
     }
 
     public static async Task DownloadFileAsync(string url, string path, DownloadConfig config)
@@ -95,7 +114,7 @@ internal static class BBDownDownloadUtil
         try
         {
             using var progress = new ProgressBar(config.RelatedTask);
-            await RangeDownloadToTmpAsync(0, url, tmpName, 0, null, (_, downloaded, total) => progress.Report((double)downloaded / total, downloaded));
+            await RangeDownloadToTmpAsync(0, url, tmpName, 0, null, null, (_, downloaded, total) => progress.Report((double)downloaded / total, downloaded));
             File.Move(tmpName, path, true);
         }
         catch (Exception)
@@ -140,7 +159,9 @@ internal static class BBDownDownloadUtil
             reDown:
             try
             {
-                await RangeDownloadToTmpAsync(clip.index, url, tmp, clip.from, clip.to == -1 ? null : clip.to, (index, downloaded, _) =>
+                // 这一片应有的长度: 最后一片(to == -1)是"总大小 - 起点", 其余是 to-from+1
+                long expected = clip.to == -1 ? fileSize - clip.from : clip.to - clip.from + 1;
+                await RangeDownloadToTmpAsync(clip.index, url, tmp, clip.from, clip.to == -1 ? null : clip.to, expected, (index, downloaded, _) =>
                 {
                     clipProgress[index] = downloaded;
                     progress.Report((double)clipProgress.Values.Sum() / fileSize, clipProgress.Values.Sum());
