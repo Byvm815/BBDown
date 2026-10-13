@@ -867,6 +867,11 @@ partial class Program
         "ownerName", "ownerMid", "publishDate", "videoDate", "downloadDate", "seasonTitle", "seasonId", "apiType"
     ];
 
+    /// <summary>
+    /// --write-info-file 的元变量: 展开成上面全部字段
+    /// </summary>
+    private const string InfoFileAllKey = "all";
+
     private static bool _warnedGroupPrefixUnsupported;
 
     /// <summary>
@@ -887,9 +892,17 @@ partial class Program
         {
             var key = m.Groups[1].Value;
             var name = key.Contains(':') ? key[..key.IndexOf(':')] : key;
+
+            // <all> 是个元变量, 展开成全部受支持的字段(按固定顺序)
+            if (name == InfoFileAllKey)
+            {
+                keys.AddRange(WriteInfoFileVariables);
+                continue;
+            }
+
             if (!WriteInfoFileVariables.Contains(name))
             {
-                throw new Exception($"--write-info-file 不支持变量 <{name}>, 可用变量: {string.Join(" ", WriteInfoFileVariables.Select(k => $"<{k}>"))}");
+                throw new Exception($"--write-info-file 不支持变量 <{name}>, 可用变量: <{InfoFileAllKey}>(全部) {string.Join(" ", WriteInfoFileVariables.Select(k => $"<{k}>"))}");
             }
             keys.Add(key);
         }

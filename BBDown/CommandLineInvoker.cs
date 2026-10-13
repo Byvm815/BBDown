@@ -54,6 +54,7 @@ internal static class CommandLineInvoker
     private static readonly Option<string> WriteInfoFile = new(["--write-info-file"],
         $"将视频元信息写入与视频同名(仅扩展名不同)的txt文件:\r\n\r\n" +
         $"参数为要写入的字段列表, 例如 \"<videoTitle><ownerName><bvid>\", 每个字段输出为一行 key: value\r\n\r\n" +
+        $"<all>: 一次性写入下面全部字段(按固定顺序)\r\n" +
         $"<videoTitle>: 视频主标题\r\n" +
         $"<pageNumber>: 视频分P序号\r\n" +
         $"<pageNumberWithZero>: 视频分P序号(前缀补零)\r\n" +
