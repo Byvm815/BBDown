@@ -552,7 +552,7 @@ partial class Program
                 LogDebug("Format Before: " + savePathFormat);
                 savePath = FormatSavePath(savePathFormat, title, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime, groupPrefix);
                 LogDebug("Format After: " + savePath);
-                WriteVideoInfoFile(myOption, savePath, title, p, pagesCount, apiType, pubTime);
+                WriteVideoInfoFile(myOption, savePath, title, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime);
 
                 if (downloadDanmaku)
                 {
@@ -735,7 +735,7 @@ partial class Program
                 }
                 if (myOption.OnlyShowInfo) return;
                 savePath = FormatSavePath(savePathFormat, title, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime, groupPrefix);
-                WriteVideoInfoFile(myOption, savePath, title, p, pagesCount, apiType, pubTime);
+                WriteVideoInfoFile(myOption, savePath, title, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime);
                 if (File.Exists(savePath) && new FileInfo(savePath).Length != 0)
                 {
                     Log($"{savePath}已存在, 跳过下载...");
@@ -859,11 +859,12 @@ partial class Program
     }
 
     /// <summary>
-    /// --write-info-file 支持的变量(不含依赖具体视频流的 dfn/res/fps 等)
+    /// --write-info-file 支持的变量(与 --file-pattern 的变量表保持一致, 顺序也照抄帮助文本)
     /// </summary>
     private static readonly string[] WriteInfoFileVariables =
     [
         "videoTitle", "pageNumber", "pageNumberWithZero", "pageTitle", "bvid", "aid", "cid",
+        "dfn", "res", "fps", "videoCodecs", "videoBandwidth", "audioCodecs", "audioBandwidth",
         "ownerName", "ownerMid", "publishDate", "videoDate", "downloadDate", "seasonTitle", "seasonId", "apiType"
     ];
 
@@ -917,7 +918,7 @@ partial class Program
     /// <summary>
     /// 按用户指定的字段列表, 把视频元信息写入与视频同名(仅扩展名不同)的txt文件
     /// </summary>
-    private static void WriteVideoInfoFile(MyOption myOption, string savePath, string title, Page p, int pagesCount, string apiType, long pubTime)
+    private static void WriteVideoInfoFile(MyOption myOption, string savePath, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime)
     {
         if (string.IsNullOrWhiteSpace(savePath) || string.IsNullOrWhiteSpace(myOption.WriteInfoFile)) return;
         var dir = Path.GetDirectoryName(savePath);
@@ -928,7 +929,7 @@ partial class Program
         {
             //变量名去掉自定义日期格式后缀, 输出为一行 "变量名: 值"
             var name = key.Contains(':') ? key[..key.IndexOf(':')] : key;
-            lines.Add($"{name}: {ResolveVariable(key, title, null, null, p, pagesCount, apiType, pubTime, sanitize: false)}");
+            lines.Add($"{name}: {ResolveVariable(key, title, videoTrack, audioTrack, p, pagesCount, apiType, pubTime, sanitize: false)}");
         }
         File.WriteAllText(infoPath, string.Join("\r\n", lines) + "\r\n");
         LogDebug("已写入视频信息文件: {0}", infoPath);
