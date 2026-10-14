@@ -402,6 +402,8 @@ partial class Program
         List<Subtitle> subtitleInfo = [];
         string title = vInfo.Title;
         string pic = vInfo.Pic;
+        //封面链接: 优先 vInfo.Pic, 为空时回退到当前分P的封面
+        string coverUrl = string.IsNullOrEmpty(pic) ? (p.cover ?? "") : pic;
         long pubTime = vInfo.PubTime;
         bool selected = false; //用户是否已经手动选择过了轨道
         int retryCount = 0;
@@ -429,7 +431,7 @@ partial class Program
                 }
                 if (!myOption.SkipCover && !myOption.SubOnly && !File.Exists(coverPath) && !myOption.DanmakuOnly && !myOption.CoverOnly)
                 {
-                    await DownloadFileAsync(pic == "" ? p.cover! : pic, coverPath, new DownloadConfig());
+                    await DownloadFileAsync(coverUrl, coverPath, new DownloadConfig());
                 }
 
                 if (!myOption.SkipSubtitle && !myOption.DanmakuOnly && !myOption.CoverOnly)
@@ -448,7 +450,7 @@ partial class Program
                         await SubUtil.SaveSubtitleAsync(s.url, s.path);
                         if (myOption.SubOnly && File.Exists(s.path) && File.ReadAllText(s.path) != "")
                         {
-                            var _outSubPath = FormatSavePath(savePathFormat, title, null, null, p, pagesCount, apiType, pubTime, groupPrefix);
+                            var _outSubPath = FormatSavePath(savePathFormat, title, coverUrl, null, null, p, pagesCount, apiType, pubTime, groupPrefix);
                             //创建完整的目标目录(路径可能是多层的, 例如 <UP主>/合集/合集·xxx/)
                             var _outDir = Path.GetDirectoryName(_outSubPath);
                             if (!string.IsNullOrEmpty(_outDir)) Directory.CreateDirectory(_outDir);
@@ -550,9 +552,10 @@ partial class Program
                 Audio? selectedBackgroundAudio = parsedResult.BackgroundAudioTracks.ElementAtOrDefault(aIndex);
 
                 LogDebug("Format Before: " + savePathFormat);
-                savePath = FormatSavePath(savePathFormat, title, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime, groupPrefix);
+                savePath = FormatSavePath(savePathFormat, title, coverUrl, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime, groupPrefix);
                 LogDebug("Format After: " + savePath);
-                WriteVideoInfoFile(myOption, savePath, title, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime);
+                WriteVideoInfoFile(myOption, savePath, title, coverUrl, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime);
+                SaveCoverToFile(myOption, coverUrl, coverPath, savePath);
 
                 if (downloadDanmaku)
                 {
@@ -596,7 +599,6 @@ partial class Program
 
                 if (myOption.CoverOnly)
                 {
-                    var coverUrl = pic == "" ? p.cover! : pic;
                     var newCoverPath = Path.ChangeExtension(savePath, Path.GetExtension(coverUrl));
                     await DownloadFileAsync(coverUrl, newCoverPath, downloadConfig);
                     if (Directory.Exists(p.aid) && Directory.GetFiles(p.aid).Length == 0) Directory.Delete(p.aid, true);
@@ -734,8 +736,9 @@ partial class Program
                     }
                 }
                 if (myOption.OnlyShowInfo) return;
-                savePath = FormatSavePath(savePathFormat, title, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime, groupPrefix);
-                WriteVideoInfoFile(myOption, savePath, title, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime);
+                savePath = FormatSavePath(savePathFormat, title, coverUrl, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime, groupPrefix);
+                WriteVideoInfoFile(myOption, savePath, title, coverUrl, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime);
+                SaveCoverToFile(myOption, coverUrl, coverPath, savePath);
                 if (File.Exists(savePath) && new FileInfo(savePath).Length != 0)
                 {
                     Log($"{savePath}已存在, 跳过下载...");
@@ -863,7 +866,7 @@ partial class Program
     /// </summary>
     private static readonly string[] WriteInfoFileVariables =
     [
-        "videoTitle", "pageNumber", "pageNumberWithZero", "pageTitle", "bvid", "aid", "cid",
+        "videoTitle", "cover", "pageNumber", "pageNumberWithZero", "pageTitle", "bvid", "aid", "cid",
         "dfn", "res", "fps", "videoCodecs", "videoBandwidth", "audioCodecs", "audioBandwidth",
         "ownerName", "ownerMid", "publishDate", "videoDate", "time_create_stamp", "seasonTitle", "seasonId", "apiType"
     ];
@@ -918,7 +921,7 @@ partial class Program
     /// <summary>
     /// 按用户指定的字段列表, 把视频元信息写入与视频同名(仅扩展名不同)的txt文件
     /// </summary>
-    private static void WriteVideoInfoFile(MyOption myOption, string savePath, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime)
+    private static void WriteVideoInfoFile(MyOption myOption, string savePath, string title, string cover, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime)
     {
         if (string.IsNullOrWhiteSpace(savePath) || string.IsNullOrWhiteSpace(myOption.SaveInfo)) return;
         var dir = Path.GetDirectoryName(savePath);
@@ -929,7 +932,7 @@ partial class Program
         {
             //变量名去掉自定义日期格式后缀, 输出为一行 "变量名: 值"
             var name = key.Contains(':') ? key[..key.IndexOf(':')] : key;
-            lines.Add($"{name}: {ResolveVariable(key, title, videoTrack, audioTrack, p, pagesCount, apiType, pubTime, sanitize: false)}");
+            lines.Add($"{name}: {ResolveVariable(key, title, cover, videoTrack, audioTrack, p, pagesCount, apiType, pubTime, sanitize: false)}");
         }
         File.WriteAllText(infoPath, string.Join("\r\n", lines) + "\r\n");
         LogDebug("已写入视频信息文件: {0}", infoPath);
@@ -939,7 +942,7 @@ partial class Program
     /// 解析单个内置变量的值, key 可带自定义日期格式后缀(如 videoDate:yyyyMMdd)
     /// </summary>
     /// <param name="sanitize">true 用于拼文件路径(替换非法字符); false 用于写信息文件(保留原文)</param>
-    private static string ResolveVariable(string key, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, bool sanitize = true)
+    private static string ResolveVariable(string key, string title, string cover, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, bool sanitize = true)
     {
         //解析自定义日期格式
         var defaultDateFormat = "yyyy-MM-dd_HH-mm-ss";
@@ -957,6 +960,7 @@ partial class Program
         return key switch
         {
             "videoTitle" => sanitize ? GetValidFileName(title, filterSlash: true).Trim().TrimEnd('.').Trim() : title,
+            "cover" => cover,
             "pageNumber" => p.index.ToString(),
             "pageNumberWithZero" => p.index.ToString().PadLeft(pagesCount.ToString().Length, '0'),
             "pageTitle" => sanitize ? GetValidFileName(p.title, filterSlash: true).Trim().TrimEnd('.').Trim() : p.title,
@@ -980,6 +984,23 @@ partial class Program
             "apiType" => apiType,
             _ => $"<{key}>"
         };
+    }
+
+    /// <summary>
+    /// --save-cover: 把已下载到临时目录的封面另存为「与视频同目录、以 bvid 命名」的图片,
+    /// 扩展名跟随封面链接(动图封面会存成 .webp/.gif 等)
+    /// </summary>
+    private static void SaveCoverToFile(MyOption myOption, string coverUrl, string coverPath, string savePath)
+    {
+        if (!myOption.SaveCover || !File.Exists(coverPath)) return;
+        //去掉 URL 的 query/fragment 再取扩展名
+        var ext = Path.GetExtension(coverUrl.Split('?')[0].Split('#')[0]);
+        if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+        var dest = Path.ChangeExtension(savePath, ext);
+        var dir = Path.GetDirectoryName(dest);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        File.Copy(coverPath, dest, true);
+        LogDebug("已保存封面: {0}", dest);
     }
 
     /// <summary>
@@ -1031,7 +1052,7 @@ partial class Program
         return root + "非合集/";
     }
 
-    private static string FormatSavePath(string savePathFormat, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, string groupPrefix = "")
+    private static string FormatSavePath(string savePathFormat, string title, string cover, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, string groupPrefix = "")
     {
         //绝对路径的pattern不参与归档前缀
         if (Path.IsPathRooted(savePathFormat)) groupPrefix = "";
@@ -1039,7 +1060,7 @@ partial class Program
         var regex = InfoRegex();
         foreach (Match m in regex.Matches(result).Cast<Match>())
         {
-            var v = ResolveVariable(m.Groups[1].Value, title, videoTrack, audioTrack, p, pagesCount, apiType, pubTime);
+            var v = ResolveVariable(m.Groups[1].Value, title, cover, videoTrack, audioTrack, p, pagesCount, apiType, pubTime);
             result = result.Replace(m.Value, v);
         }
         if (!result.EndsWith(".mp4")) { result += ".mp4"; }

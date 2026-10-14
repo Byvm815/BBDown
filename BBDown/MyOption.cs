@@ -25,6 +25,10 @@ internal class MyOption
     public bool SkipMux { get; set; }
     public bool SkipSubtitle { get; set; }
     public bool SkipCover { get; set; }
+    /// <summary>
+    /// 把封面另存为与视频同目录、以 bvid 命名的图片(扩展名跟随封面链接)
+    /// </summary>
+    public bool SaveCover { get; set; } = false;
     public bool ForceHttp { get; set; } = true;
     public bool DownloadDanmaku { get; set; } = false;
     public string? DownloadDanmakuFormats { get; set; }

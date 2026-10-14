@@ -33,6 +33,7 @@ internal static class CommandLineInvoker
     private static readonly Option<bool> SkipMux = new(["--skip-mux"], "跳过混流步骤");
     private static readonly Option<bool> SkipSubtitle = new(["--skip-subtitle"], "跳过字幕下载");
     private static readonly Option<bool> SkipCover = new(["--skip-cover"], "跳过封面下载");
+    private static readonly Option<bool> SaveCover = new(["--save-cover"], "把封面另存为与视频同目录、以bvid命名的图片文件(扩展名跟随封面链接, 与--skip-cover同时使用时以--skip-cover为准)");
     private static readonly Option<bool> ForceHttp = new(["--force-http"], "下载音视频时强制使用HTTP协议替换HTTPS(默认开启)");
     private static readonly Option<bool> DownloadDanmaku = new(["--download-danmaku", "-dd"], "下载弹幕");
     private static readonly Option<string> DownloadDanmakuFormats = new(["--download-danmaku-formats", "-ddf"], $"指定需下载的弹幕格式, 用逗号分隔, 可选 {string.Join('/', BBDownDanmakuFormatInfo.AllFormatNames)}, 默认: \"{string.Join(',', BBDownDanmakuFormatInfo.AllFormatNames)}\"");
@@ -56,6 +57,7 @@ internal static class CommandLineInvoker
         $"参数为要保存的字段列表, 例如 \"<videoTitle><bvid>\" (每个字段一行 key: value)\r\n\r\n" +
         $"<all>: 一次性写入下面全部字段(按固定顺序)\r\n" +
         $"<videoTitle>: 视频主标题\r\n" +
+        $"<cover>: 视频封面链接\r\n" +
         $"<pageNumber>: 视频分P序号\r\n" +
         $"<pageNumberWithZero>: 视频分P序号(前缀补零)\r\n" +
         $"<pageTitle>: 视频分P标题\r\n" +
@@ -141,6 +143,7 @@ internal static class CommandLineInvoker
             if (bindingContext.ParseResult.HasOption(SkipMux)) option.SkipMux = bindingContext.ParseResult.GetValueForOption(SkipMux)!;
             if (bindingContext.ParseResult.HasOption(SkipSubtitle)) option.SkipSubtitle = bindingContext.ParseResult.GetValueForOption(SkipSubtitle)!;
             if (bindingContext.ParseResult.HasOption(SkipCover)) option.SkipCover = bindingContext.ParseResult.GetValueForOption(SkipCover)!;
+            if (bindingContext.ParseResult.HasOption(SaveCover)) option.SaveCover = bindingContext.ParseResult.GetValueForOption(SaveCover)!;
             if (bindingContext.ParseResult.HasOption(ForceHttp)) option.ForceHttp = bindingContext.ParseResult.GetValueForOption(ForceHttp)!;
             if (bindingContext.ParseResult.HasOption(DownloadDanmaku)) option.DownloadDanmaku = bindingContext.ParseResult.GetValueForOption(DownloadDanmaku)!;
             if (bindingContext.ParseResult.HasOption(DownloadDanmakuFormats)) option.DownloadDanmakuFormats = bindingContext.ParseResult.GetValueForOption(DownloadDanmakuFormats)!;
@@ -208,6 +211,7 @@ internal static class CommandLineInvoker
             SkipMux,
             SkipSubtitle,
             SkipCover,
+            SaveCover,
             ForceHttp,
             DownloadDanmaku,
             DownloadDanmakuFormats,
