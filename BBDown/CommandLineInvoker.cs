@@ -68,7 +68,7 @@ internal static class CommandLineInvoker
         $"<ownerMid>: 上传者mid\r\n" +
         $"<publishDate>: 收藏夹/番剧/合集发布时间\r\n" +
         $"<videoDate>: 视频发布时间\r\n" +
-        $"<time_create_stamp>: 下载时间\r\n" +
+        $"<downloadDate>: 下载时间\r\n" +
         $"<seasonTitle>: 视频所属UGC合集名称(不属于合集时为空)\r\n" +
         $"<seasonId>: 视频所属UGC合集id(不属于合集时为空)\r\n" +
         $"<apiType>: API类型(TV/APP/INTL/WEB)\r\n\r\n" +
