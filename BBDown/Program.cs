@@ -188,10 +188,10 @@ partial class Program
         //处理冲突选项
         HandleConflictingOptions(myOption);
 
-        //校验--write-info-file的格式, 不合法时尽早报错
-        if (!string.IsNullOrWhiteSpace(myOption.WriteInfoFile))
+        //校验--save-info的格式, 不合法时尽早报错
+        if (!string.IsNullOrWhiteSpace(myOption.SaveInfo))
         {
-            ParseWriteInfoFileKeys(myOption.WriteInfoFile);
+            ParseWriteInfoFileKeys(myOption.SaveInfo);
         }
 
         //寻找并设置所需的二进制文件路径
@@ -859,7 +859,7 @@ partial class Program
     }
 
     /// <summary>
-    /// --write-info-file 支持的变量(与 --file-pattern 的变量表保持一致, 顺序也照抄帮助文本)
+    /// --save-info 支持的变量(与 --file-pattern 的变量表保持一致, 顺序也照抄帮助文本)
     /// </summary>
     private static readonly string[] WriteInfoFileVariables =
     [
@@ -869,14 +869,14 @@ partial class Program
     ];
 
     /// <summary>
-    /// --write-info-file 的元变量: 展开成上面全部字段
+    /// --save-info 的元变量: 展开成上面全部字段
     /// </summary>
     private const string InfoFileAllKey = "all";
 
     private static bool _warnedGroupPrefixUnsupported;
 
     /// <summary>
-    /// 从 --write-info-file 参数中抽出变量名并校验格式, 不合法时抛异常
+    /// 从 --save-info 参数中抽出变量名并校验格式, 不合法时抛异常
     /// </summary>
     private static List<string> ParseWriteInfoFileKeys(string format)
     {
@@ -885,7 +885,7 @@ partial class Program
         var rest = regex.Replace(format, "");
         if (rest.Trim().Length != 0)
         {
-            throw new Exception($"--write-info-file 参数格式不正确, 只允许连续的<变量>, 例如 \"<videoTitle><bvid>\"; 无法识别的内容: \"{rest.Trim()}\"");
+            throw new Exception($"--save-info 参数格式不正确, 只允许连续的<变量>, 例如 \"<videoTitle><bvid>\"; 无法识别的内容: \"{rest.Trim()}\"");
         }
 
         List<string> keys = [];
@@ -903,14 +903,14 @@ partial class Program
 
             if (!WriteInfoFileVariables.Contains(name))
             {
-                throw new Exception($"--write-info-file 不支持变量 <{name}>, 可用变量: <{InfoFileAllKey}>(全部) {string.Join(" ", WriteInfoFileVariables.Select(k => $"<{k}>"))}");
+                throw new Exception($"--save-info 不支持变量 <{name}>, 可用变量: <{InfoFileAllKey}>(全部) {string.Join(" ", WriteInfoFileVariables.Select(k => $"<{k}>"))}");
             }
             keys.Add(key);
         }
 
         if (keys.Count == 0)
         {
-            throw new Exception("--write-info-file 参数不能为空, 例如 \"<videoTitle><bvid>\"");
+            throw new Exception("--save-info 参数不能为空, 例如 \"<videoTitle><bvid>\"");
         }
         return keys;
     }
@@ -920,12 +920,12 @@ partial class Program
     /// </summary>
     private static void WriteVideoInfoFile(MyOption myOption, string savePath, string title, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime)
     {
-        if (string.IsNullOrWhiteSpace(savePath) || string.IsNullOrWhiteSpace(myOption.WriteInfoFile)) return;
+        if (string.IsNullOrWhiteSpace(savePath) || string.IsNullOrWhiteSpace(myOption.SaveInfo)) return;
         var dir = Path.GetDirectoryName(savePath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         var infoPath = Path.ChangeExtension(savePath, ".txt");
         var lines = new List<string>();
-        foreach (var key in ParseWriteInfoFileKeys(myOption.WriteInfoFile))
+        foreach (var key in ParseWriteInfoFileKeys(myOption.SaveInfo))
         {
             //变量名去掉自定义日期格式后缀, 输出为一行 "变量名: 值"
             var name = key.Contains(':') ? key[..key.IndexOf(':')] : key;

@@ -51,9 +51,9 @@ internal static class CommandLineInvoker
     private static readonly Option<string> UposHost = new(["--upos-host"], "自定义upos服务器");
     private static readonly Option<bool> ForceReplaceHost = new(["--force-replace-host"], "强制替换下载服务器host(默认开启)");
     private static readonly Option<bool> SaveArchivesToFile = new(["--save-archives-to-file"], "将下载过的视频记录到本地文件中, 用于后续跳过下载同个视频");
-    private static readonly Option<string> WriteInfoFile = new(["--write-info-file"],
+    private static readonly Option<string> SaveInfo = new(["--save-info"],
         $"将视频元信息写入与视频同名(仅扩展名不同)的txt文件:\r\n\r\n" +
-        $"参数为要写入的字段列表, 例如 \"<videoTitle><ownerName><bvid>\", 每个字段输出为一行 key: value\r\n\r\n" +
+        $"参数为要保存的字段列表, 例如 \"<videoTitle><bvid>\" (每个字段一行 key: value)\r\n\r\n" +
         $"<all>: 一次性写入下面全部字段(按固定顺序)\r\n" +
         $"<videoTitle>: 视频主标题\r\n" +
         $"<pageNumber>: 视频分P序号\r\n" +
@@ -163,7 +163,7 @@ internal static class CommandLineInvoker
             if (bindingContext.ParseResult.HasOption(UposHost)) option.UposHost = bindingContext.ParseResult.GetValueForOption(UposHost)!;
             if (bindingContext.ParseResult.HasOption(ForceReplaceHost)) option.ForceReplaceHost = bindingContext.ParseResult.GetValueForOption(ForceReplaceHost)!;
             if (bindingContext.ParseResult.HasOption(SaveArchivesToFile)) option.SaveArchivesToFile = bindingContext.ParseResult.GetValueForOption(SaveArchivesToFile)!;
-            if (bindingContext.ParseResult.HasOption(WriteInfoFile)) option.WriteInfoFile = bindingContext.ParseResult.GetValueForOption(WriteInfoFile)!;
+            if (bindingContext.ParseResult.HasOption(SaveInfo)) option.SaveInfo = bindingContext.ParseResult.GetValueForOption(SaveInfo)!;
             if (bindingContext.ParseResult.HasOption(GroupByUploader)) option.GroupByUploader = bindingContext.ParseResult.GetValueForOption(GroupByUploader)!;
             if (bindingContext.ParseResult.HasOption(DelayPerPage)) option.DelayPerPage = bindingContext.ParseResult.GetValueForOption(DelayPerPage)!;
             if (bindingContext.ParseResult.HasOption(Host)) option.Host = bindingContext.ParseResult.GetValueForOption(Host)!;
@@ -230,7 +230,7 @@ internal static class CommandLineInvoker
             UposHost,
             ForceReplaceHost,
             SaveArchivesToFile,
-            WriteInfoFile,
+            SaveInfo,
             GroupByUploader,
             DelayPerPage,
             Host,
