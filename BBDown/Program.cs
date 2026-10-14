@@ -865,7 +865,7 @@ partial class Program
     [
         "videoTitle", "pageNumber", "pageNumberWithZero", "pageTitle", "bvid", "aid", "cid",
         "dfn", "res", "fps", "videoCodecs", "videoBandwidth", "audioCodecs", "audioBandwidth",
-        "ownerName", "ownerMid", "publishDate", "videoDate", "downloadDate", "seasonTitle", "seasonId", "apiType"
+        "ownerName", "ownerMid", "publishDate", "videoDate", "time_create_stamp", "seasonTitle", "seasonId", "apiType"
     ];
 
     /// <summary>
@@ -943,7 +943,7 @@ partial class Program
     {
         //解析自定义日期格式
         var defaultDateFormat = "yyyy-MM-dd_HH-mm-ss";
-        string[] prefixes = ["publishDate:", "videoDate:", "downloadDate:"];
+        string[] prefixes = ["publishDate:", "videoDate:", "time_create_stamp:"];
         foreach (var prefix in prefixes)
         {
             if (key.StartsWith(prefix))
@@ -976,7 +976,7 @@ partial class Program
             "audioBandwidth" => audioTrack == null ? "" : audioTrack.bandwith.ToString(),
             "publishDate" => FormatTimeStamp(pubTime, defaultDateFormat),
             "videoDate" => FormatTimeStamp(p.pubTime, defaultDateFormat),
-            "downloadDate" => FormatTimeStamp(DateTimeOffset.Now.ToUnixTimeSeconds(), defaultDateFormat),
+            "time_create_stamp" => FormatTimeStamp(DateTimeOffset.Now.ToUnixTimeSeconds(), defaultDateFormat),
             "apiType" => apiType,
             _ => $"<{key}>"
         };
