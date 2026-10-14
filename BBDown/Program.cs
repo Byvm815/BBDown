@@ -867,7 +867,7 @@ partial class Program
     private static readonly string[] WriteInfoFileVariables =
     [
         "videoTitle", "cover", "pageNumber", "pageNumberWithZero", "pageTitle", "bvid", "aid", "cid",
-        "dfn", "res", "fps", "videoCodecs", "videoBandwidth", "audioCodecs", "audioBandwidth",
+        "dfn", "res", "fps", "videoCodecs", "videoBandwidth", "videoDuration", "videoBytes", "audioCodecs", "audioBandwidth",
         "ownerName", "ownerMid", "publishDate", "videoDate", "downloadDate", "seasonTitle", "seasonId", "apiType"
     ];
 
@@ -976,6 +976,8 @@ partial class Program
             "fps" => videoTrack == null ? "" : videoTrack.fps,
             "videoCodecs" => videoTrack == null ? "" : videoTrack.codecs,
             "videoBandwidth" => videoTrack == null ? "" : videoTrack.bandwith.ToString(),
+            "videoDuration" => FormatDuration(p.dur),
+            "videoBytes" => ResolveVideoBytes(videoTrack, audioTrack, p.dur),
             "audioCodecs" => audioTrack == null ? "" : audioTrack.codecs,
             "audioBandwidth" => audioTrack == null ? "" : audioTrack.bandwith.ToString(),
             "publishDate" => FormatTimeStamp(pubTime, defaultDateFormat),
@@ -984,6 +986,37 @@ partial class Program
             "apiType" => apiType,
             _ => $"<{key}>"
         };
+    }
+
+    /// <summary>
+    /// 把秒数格式化成固定的 HH:mm:ss
+    /// </summary>
+    private static string FormatDuration(int seconds)
+    {
+        if (seconds < 0) seconds = 0;
+        return $"{seconds / 3600:00}:{seconds % 3600 / 60:00}:{seconds % 60:00}";
+    }
+
+    /// <summary>
+    /// 选中流的预估总字节数(视频+音频), 算法与流列表里 [~xx MB] 的显示完全一致:
+    /// 视频优先用接口给的 size, 为 0 时按 时长*码率 估算; 音频一律按 时长*码率 估算。
+    /// 两个轨道都为空时返回空串。
+    /// </summary>
+    private static string ResolveVideoBytes(Video? videoTrack, Audio? audioTrack, int pageDur)
+    {
+        if (videoTrack == null && audioTrack == null) return "";
+        double total = 0;
+        if (videoTrack != null)
+        {
+            int d = pageDur == 0 ? videoTrack.dur : pageDur;
+            total += videoTrack.size > 0 ? videoTrack.size : d * videoTrack.bandwith * 1024 / 8;
+        }
+        if (audioTrack != null)
+        {
+            int d = pageDur == 0 ? audioTrack.dur : pageDur;
+            total += d * audioTrack.bandwith * 1024 / 8;
+        }
+        return ((long)total).ToString();
     }
 
     /// <summary>
@@ -1035,10 +1068,8 @@ partial class Program
         if (up.All(char.IsDigit)) up += "_";
 
         var root = up + "/";
-        //合集/非合集 两个目录总是创建
-        Directory.CreateDirectory(root + "合集");
-        Directory.CreateDirectory(root + "非合集");
 
+        //按需创建: 在合集里就建「合集/合集·<名>」, 否则只建「非合集」
         if (!string.IsNullOrWhiteSpace(p.seasonTitle))
         {
             var season = SanitizePathSegment($"合集·{p.seasonTitle}");
@@ -1049,6 +1080,7 @@ partial class Program
                 return dir + "/";
             }
         }
+        Directory.CreateDirectory(root + "非合集");
         return root + "非合集/";
     }
 

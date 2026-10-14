@@ -64,6 +64,15 @@ internal static class CommandLineInvoker
         $"<bvid>: 视频BV号\r\n" +
         $"<aid>: 视频aid\r\n" +
         $"<cid>: 视频cid\r\n" +
+        $"<dfn>: 视频清晰度\r\n" +
+        $"<res>: 视频分辨率\r\n" +
+        $"<fps>: 视频帧率\r\n" +
+        $"<videoCodecs>: 视频编码\r\n" +
+        $"<videoBandwidth>: 视频码率(kbps)\r\n" +
+        $"<videoDuration>: 视频时长(HH:mm:ss)\r\n" +
+        $"<videoBytes>: 视频字节数(选中流预估, 视频+音频)\r\n" +
+        $"<audioCodecs>: 音频编码\r\n" +
+        $"<audioBandwidth>: 音频码率(kbps)\r\n" +
         $"<ownerName>: 上传者名称\r\n" +
         $"<ownerMid>: 上传者mid\r\n" +
         $"<publishDate>: 收藏夹/番剧/合集发布时间\r\n" +
