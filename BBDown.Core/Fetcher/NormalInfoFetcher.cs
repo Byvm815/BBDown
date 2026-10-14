@@ -47,6 +47,8 @@ public partial class NormalInfoFetcher : IFetcher
                 ownerName,
                 ownerMid
             );
+            //分P投稿时间
+            p.ctime = page.TryGetProperty("ctime", out var ctimeElem) ? ctimeElem.GetInt64() : null;
             pagesInfo.Add(p);
         }
 
@@ -113,10 +115,12 @@ public partial class NormalInfoFetcher : IFetcher
         catch { }
 
         //UGC合集信息: 只有在合集里的视频才有ugc_season字段
+        int? seasonEpCount = null;
         if (data.TryGetProperty("ugc_season", out var ugcSeason) && ugcSeason.ValueKind == JsonValueKind.Object)
         {
             string? seasonTitle = ugcSeason.TryGetProperty("title", out var seasonTitleElem) ? seasonTitleElem.GetString() : null;
             string? seasonId = ugcSeason.TryGetProperty("id", out var seasonIdElem) ? seasonIdElem.ToString() : null;
+            seasonEpCount = ugcSeason.TryGetProperty("ep_count", out var epCountElem) ? epCountElem.GetInt32() : null;
             pagesInfo.ForEach(p =>
             {
                 p.seasonTitle = seasonTitle;
@@ -132,10 +136,32 @@ public partial class NormalInfoFetcher : IFetcher
             PubTime = pubTime,
             PagesInfo = pagesInfo,
             IsBangumi = bangumi,
-            IsSteinGate = isSteinGate == 1
+            IsSteinGate = isSteinGate == 1,
+            Videos = data.TryGetProperty("videos", out var videosElem) ? videosElem.GetInt32() : null,
+            Duration = data.TryGetProperty("duration", out var durationElem) ? durationElem.GetInt32() : null,
+            Copyright = data.TryGetProperty("copyright", out var copyrightElem) ? copyrightElem.GetInt32() : null,
+            IsCooperation = data.TryGetProperty("rights", out var rightsNode) && rightsNode.TryGetProperty("is_cooperation", out var coopElem) ? coopElem.GetInt32() == 1 : null,
+            DanmakuCount = GetStatLong(data, "danmaku"),
+            ViewCount = GetStatLong(data, "view"),
+            LikeCount = GetStatLong(data, "like"),
+            CoinCount = GetStatLong(data, "coin"),
+            FavoriteCount = GetStatLong(data, "favorite"),
+            ReplyCount = GetStatLong(data, "reply"),
+            ShareCount = GetStatLong(data, "share"),
+            SeasonEpCount = seasonEpCount
         };
 
         return info;
+    }
+
+    /// <summary>
+    /// 取 data.stat 下的整数统计值; stat 缺失或该键不是数字时返回 null
+    /// </summary>
+    private static long? GetStatLong(JsonElement data, string name)
+    {
+        if (!data.TryGetProperty("stat", out var stat) || stat.ValueKind != JsonValueKind.Object) return null;
+        if (!stat.TryGetProperty(name, out var elem) || elem.ValueKind != JsonValueKind.Number) return null;
+        return elem.GetInt64();
     }
 
     [GeneratedRegex("ep(\\d+)")]

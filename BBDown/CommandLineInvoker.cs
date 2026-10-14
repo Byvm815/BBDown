@@ -58,9 +58,12 @@ internal static class CommandLineInvoker
         $"<all>: 一次性写入下面全部字段(按固定顺序)\r\n" +
         $"<videoTitle>: 视频主标题\r\n" +
         $"<cover>: 视频封面链接\r\n" +
+        $"<desc>: 视频简介(换行转义成 \\n)\r\n" +
         $"<pageNumber>: 视频分P序号\r\n" +
         $"<pageNumberWithZero>: 视频分P序号(前缀补零)\r\n" +
         $"<pageTitle>: 视频分P标题\r\n" +
+        $"<pageCount>: 视频分P总数\r\n" +
+        $"<pageDate>: 分P投稿时间\r\n" +
         $"<bvid>: 视频BV号\r\n" +
         $"<aid>: 视频aid\r\n" +
         $"<cid>: 视频cid\r\n" +
@@ -75,11 +78,22 @@ internal static class CommandLineInvoker
         $"<audioBandwidth>: 音频码率(kbps)\r\n" +
         $"<ownerName>: 上传者名称\r\n" +
         $"<ownerMid>: 上传者mid\r\n" +
+        $"<copyright>: 稿件类型(1=自制 2=转载)\r\n" +
+        $"<isCooperation>: 是否联合投稿(true/false)\r\n" +
         $"<publishDate>: 收藏夹/番剧/合集发布时间\r\n" +
         $"<videoDate>: 视频发布时间\r\n" +
         $"<downloadDate>: 下载时间\r\n" +
+        $"<totalDuration>: 稿件总时长(HH:mm:ss)\r\n" +
         $"<seasonTitle>: 视频所属UGC合集名称(不属于合集时为空)\r\n" +
         $"<seasonId>: 视频所属UGC合集id(不属于合集时为空)\r\n" +
+        $"<seasonEpCount>: 视频所属UGC合集的总集数\r\n" +
+        $"<danmakuCount>: 弹幕数\r\n" +
+        $"<viewCount>: 播放量\r\n" +
+        $"<likeCount>: 点赞数\r\n" +
+        $"<coinCount>: 投币数\r\n" +
+        $"<favoriteCount>: 收藏数\r\n" +
+        $"<replyCount>: 评论数\r\n" +
+        $"<shareCount>: 分享数\r\n" +
         $"<apiType>: API类型(TV/APP/INTL/WEB)\r\n\r\n" +
         $"日期字段可自定义格式, 例如 <videoDate:yyyyMMdd>\r\n");
     private static readonly Option<bool> GroupByUploader = new(["--group-by-uploader"], "按UP主与合集归档为 <UP主名称>/合集/合集·<合集名称>/ 或 <UP主名称>/非合集/");

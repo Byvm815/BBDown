@@ -27,6 +27,10 @@ public static class Entity
         /// 视频所属UGC合集的id, 不属于任何合集时为null
         /// </summary>
         public string? seasonId;
+        /// <summary>
+        /// 分P投稿时间(秒)。来自 view 接口的 pages[].ctime; 其他来源没有该字段时为 null
+        /// </summary>
+        public long? ctime;
         public string bvid
         {
             get => BilibiliBvConverter.Encode(long.Parse(aid));
@@ -108,6 +112,7 @@ public static class Entity
             this.ownerMid = page.ownerMid;
             this.seasonTitle = page.seasonTitle;
             this.seasonId = page.seasonId;
+            this.ctime = page.ctime;
         }
 
         public override bool Equals(object? obj)

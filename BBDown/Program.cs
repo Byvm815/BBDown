@@ -450,7 +450,7 @@ partial class Program
                         await SubUtil.SaveSubtitleAsync(s.url, s.path);
                         if (myOption.SubOnly && File.Exists(s.path) && File.ReadAllText(s.path) != "")
                         {
-                            var _outSubPath = FormatSavePath(savePathFormat, title, coverUrl, null, null, p, pagesCount, apiType, pubTime, groupPrefix);
+                            var _outSubPath = FormatSavePath(savePathFormat, title, coverUrl, vInfo, null, null, p, pagesCount, apiType, pubTime, groupPrefix);
                             //创建完整的目标目录(路径可能是多层的, 例如 <UP主>/合集/合集·xxx/)
                             var _outDir = Path.GetDirectoryName(_outSubPath);
                             if (!string.IsNullOrEmpty(_outDir)) Directory.CreateDirectory(_outDir);
@@ -552,9 +552,9 @@ partial class Program
                 Audio? selectedBackgroundAudio = parsedResult.BackgroundAudioTracks.ElementAtOrDefault(aIndex);
 
                 LogDebug("Format Before: " + savePathFormat);
-                savePath = FormatSavePath(savePathFormat, title, coverUrl, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime, groupPrefix);
+                savePath = FormatSavePath(savePathFormat, title, coverUrl, vInfo, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime, groupPrefix);
                 LogDebug("Format After: " + savePath);
-                WriteVideoInfoFile(myOption, savePath, title, coverUrl, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime);
+                WriteVideoInfoFile(myOption, savePath, title, coverUrl, vInfo, selectedVideo, selectedAudio, p, pagesCount, apiType, pubTime);
                 SaveCoverToFile(myOption, coverUrl, coverPath, savePath);
 
                 if (downloadDanmaku)
@@ -736,8 +736,8 @@ partial class Program
                     }
                 }
                 if (myOption.OnlyShowInfo) return;
-                savePath = FormatSavePath(savePathFormat, title, coverUrl, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime, groupPrefix);
-                WriteVideoInfoFile(myOption, savePath, title, coverUrl, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime);
+                savePath = FormatSavePath(savePathFormat, title, coverUrl, vInfo, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime, groupPrefix);
+                WriteVideoInfoFile(myOption, savePath, title, coverUrl, vInfo, parsedResult.VideoTracks.ElementAtOrDefault(vIndex), null, p, pagesCount, apiType, pubTime);
                 SaveCoverToFile(myOption, coverUrl, coverPath, savePath);
                 if (File.Exists(savePath) && new FileInfo(savePath).Length != 0)
                 {
@@ -866,9 +866,15 @@ partial class Program
     /// </summary>
     private static readonly string[] WriteInfoFileVariables =
     [
-        "videoTitle", "cover", "pageNumber", "pageNumberWithZero", "pageTitle", "bvid", "aid", "cid",
+        "videoTitle", "cover", "desc",
+        "pageNumber", "pageNumberWithZero", "pageTitle", "pageCount", "pageDate",
+        "bvid", "aid", "cid",
         "dfn", "res", "fps", "videoCodecs", "videoBandwidth", "videoDuration", "videoBytes", "audioCodecs", "audioBandwidth",
-        "ownerName", "ownerMid", "publishDate", "videoDate", "downloadDate", "seasonTitle", "seasonId", "apiType"
+        "ownerName", "ownerMid", "copyright", "isCooperation",
+        "publishDate", "videoDate", "downloadDate", "totalDuration",
+        "seasonTitle", "seasonId", "seasonEpCount",
+        "danmakuCount", "viewCount", "likeCount", "coinCount", "favoriteCount", "replyCount", "shareCount",
+        "apiType"
     ];
 
     /// <summary>
@@ -921,7 +927,7 @@ partial class Program
     /// <summary>
     /// 按用户指定的字段列表, 把视频元信息写入与视频同名(仅扩展名不同)的txt文件
     /// </summary>
-    private static void WriteVideoInfoFile(MyOption myOption, string savePath, string title, string cover, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime)
+    private static void WriteVideoInfoFile(MyOption myOption, string savePath, string title, string cover, VInfo videoInfo, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime)
     {
         if (string.IsNullOrWhiteSpace(savePath) || string.IsNullOrWhiteSpace(myOption.SaveInfo)) return;
         var dir = Path.GetDirectoryName(savePath);
@@ -932,7 +938,7 @@ partial class Program
         {
             //变量名去掉自定义日期格式后缀, 输出为一行 "变量名: 值"
             var name = key.Contains(':') ? key[..key.IndexOf(':')] : key;
-            lines.Add($"{name}: {ResolveVariable(key, title, cover, videoTrack, audioTrack, p, pagesCount, apiType, pubTime, sanitize: false)}");
+            lines.Add($"{name}: {ResolveVariable(key, title, cover, videoInfo, videoTrack, audioTrack, p, pagesCount, apiType, pubTime, sanitize: false)}");
         }
         File.WriteAllText(infoPath, string.Join("\r\n", lines) + "\r\n");
         LogDebug("已写入视频信息文件: {0}", infoPath);
@@ -942,11 +948,11 @@ partial class Program
     /// 解析单个内置变量的值, key 可带自定义日期格式后缀(如 videoDate:yyyyMMdd)
     /// </summary>
     /// <param name="sanitize">true 用于拼文件路径(替换非法字符); false 用于写信息文件(保留原文)</param>
-    private static string ResolveVariable(string key, string title, string cover, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, bool sanitize = true)
+    private static string ResolveVariable(string key, string title, string cover, VInfo videoInfo, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, bool sanitize = true)
     {
         //解析自定义日期格式
         var defaultDateFormat = "yyyy-MM-dd_HH-mm-ss";
-        string[] prefixes = ["publishDate:", "videoDate:", "downloadDate:"];
+        string[] prefixes = ["publishDate:", "videoDate:", "downloadDate:", "pageDate:"];
         foreach (var prefix in prefixes)
         {
             if (key.StartsWith(prefix))
@@ -961,16 +967,22 @@ partial class Program
         {
             "videoTitle" => sanitize ? GetValidFileName(title, filterSlash: true).Trim().TrimEnd('.').Trim() : title,
             "cover" => cover,
+            "desc" => EscapeNewlines(videoInfo.Desc),
             "pageNumber" => p.index.ToString(),
             "pageNumberWithZero" => p.index.ToString().PadLeft(pagesCount.ToString().Length, '0'),
             "pageTitle" => sanitize ? GetValidFileName(p.title, filterSlash: true).Trim().TrimEnd('.').Trim() : p.title,
+            "pageCount" => (videoInfo.Videos ?? videoInfo.PagesInfo.Count).ToString(),
+            "pageDate" => p.ctime == null ? "" : FormatTimeStamp(p.ctime.Value, defaultDateFormat),
             "bvid" => p.bvid,
             "aid" => p.aid,
             "cid" => p.cid,
             "ownerName" => p.ownerName == null ? "" : (sanitize ? GetValidFileName(p.ownerName, filterSlash: true).Trim().TrimEnd('.').Trim() : p.ownerName),
             "ownerMid" => p.ownerMid ?? "",
+            "copyright" => videoInfo.Copyright?.ToString() ?? "",
+            "isCooperation" => videoInfo.IsCooperation?.ToString().ToLower() ?? "",
             "seasonTitle" => p.seasonTitle == null ? "" : (sanitize ? GetValidFileName(p.seasonTitle, filterSlash: true).Trim().TrimEnd('.').Trim() : p.seasonTitle),
             "seasonId" => p.seasonId ?? "",
+            "seasonEpCount" => videoInfo.SeasonEpCount?.ToString() ?? "",
             "dfn" => videoTrack == null ? "" : videoTrack.dfn,
             "res" => videoTrack == null ? "" : videoTrack.res,
             "fps" => videoTrack == null ? "" : videoTrack.fps,
@@ -983,10 +995,25 @@ partial class Program
             "publishDate" => FormatTimeStamp(pubTime, defaultDateFormat),
             "videoDate" => FormatTimeStamp(p.pubTime, defaultDateFormat),
             "downloadDate" => FormatTimeStamp(DateTimeOffset.Now.ToUnixTimeSeconds(), defaultDateFormat),
+            "totalDuration" => videoInfo.Duration == null ? "" : FormatDuration(videoInfo.Duration.Value),
+            "danmakuCount" => videoInfo.DanmakuCount?.ToString() ?? "",
+            "viewCount" => videoInfo.ViewCount?.ToString() ?? "",
+            "likeCount" => videoInfo.LikeCount?.ToString() ?? "",
+            "coinCount" => videoInfo.CoinCount?.ToString() ?? "",
+            "favoriteCount" => videoInfo.FavoriteCount?.ToString() ?? "",
+            "replyCount" => videoInfo.ReplyCount?.ToString() ?? "",
+            "shareCount" => videoInfo.ShareCount?.ToString() ?? "",
             "apiType" => apiType,
             _ => $"<{key}>"
         };
     }
+
+    /// <summary>
+    /// 把简介里的真实换行转义成字面量 \n。
+    /// 信息文件是「每行一条 key: value」, 简介直接折行的话后续行会被误读成新的字段。
+    /// </summary>
+    private static string EscapeNewlines(string text)
+        => text.Replace("\r\n", "\n").Replace('\r', '\n').Replace("\n", "\\n");
 
     /// <summary>
     /// 把秒数格式化成固定的 HH:mm:ss
@@ -1084,7 +1111,7 @@ partial class Program
         return root + "非合集/";
     }
 
-    private static string FormatSavePath(string savePathFormat, string title, string cover, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, string groupPrefix = "")
+    private static string FormatSavePath(string savePathFormat, string title, string cover, VInfo videoInfo, Video? videoTrack, Audio? audioTrack, Page p, int pagesCount, string apiType, long pubTime, string groupPrefix = "")
     {
         //绝对路径的pattern不参与归档前缀
         if (Path.IsPathRooted(savePathFormat)) groupPrefix = "";
@@ -1092,7 +1119,7 @@ partial class Program
         var regex = InfoRegex();
         foreach (Match m in regex.Matches(result).Cast<Match>())
         {
-            var v = ResolveVariable(m.Groups[1].Value, title, cover, videoTrack, audioTrack, p, pagesCount, apiType, pubTime);
+            var v = ResolveVariable(m.Groups[1].Value, title, cover, videoInfo, videoTrack, audioTrack, p, pagesCount, apiType, pubTime);
             result = result.Replace(m.Value, v);
         }
         if (!result.EndsWith(".mp4")) { result += ".mp4"; }
